@@ -20,6 +20,7 @@ kernel void add_vectors(
 ) {
 
     const uint BLOCKSIZE = 32;
+    const uint D = 4;
 
     const int threadRow = thread_position_in_threadgroup.y;
     const int threadCol = thread_position_in_threadgroup.x;
@@ -31,7 +32,7 @@ kernel void add_vectors(
     device const float* B_tile = B + cCol * BLOCKSIZE;               // row = 0, col = cCol
     device float* C_tile = C + cRow * BLOCKSIZE * N + cCol * BLOCKSIZE;
 
-    float tmp = 0.0f;
+    float threadResults[D] = {0.0};
 
     // Loop over all tiles
     for (int bkIdx = 0; bkIdx < K; bkIdx += BLOCKSIZE) {
@@ -48,8 +49,10 @@ kernel void add_vectors(
 
         // Multiply the two tiles together
         for (int dotIdx = 0; dotIdx < BLOCKSIZE; ++dotIdx) {
-        tmp += As[threadRow * BLOCKSIZE + dotIdx] *
-                Bs[dotIdx * BLOCKSIZE + threadCol];
+            float Btmp = Bs[dotIdx * BLOCKSIZE + threadCol];
+            for (uint resIdx = 0; resIdx < D; ++resIdx) {
+                threadResults[resIdx] += As[(threadRow * D + resIdx) * BLOCKSIZE + dotIdx] * Btmp;
+            }
         }
 
         // Synchronize before loading the next tile
@@ -63,10 +66,12 @@ kernel void add_vectors(
     int row = cRow * BLOCKSIZE + threadRow;
     int col = cCol * BLOCKSIZE + threadCol;
 
-    // Write result to global memory if within bounds
-    if (row < M && col < N) {
-        C_tile[threadRow * N + threadCol] =
-            alpha * tmp + beta * C_tile[threadRow * N + threadCol];
+    for (uint resIdx = 0; resIdx < D; ++resIdx) {
+        int writeRow = row + resIdx;
+        if (writeRow < M && col < N) {
+            uint index = writeRow * N + col;
+            C[index] = alpha * threadResults[resIdx] + beta * C[index];
+        }
     }
 }
 

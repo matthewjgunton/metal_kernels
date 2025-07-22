@@ -15,6 +15,17 @@ int main() {
         return 1;
     }
 
+       // ========== ADD DEVICE PROPERTIES HERE ==========
+   printf("=== Metal Device Properties ===\n");
+   printf("Device name: %s\n", [[device name] UTF8String]);
+   printf("Max threadgroup memory: %lu bytes\n", (unsigned long)[device maxThreadgroupMemoryLength]);
+   printf("Max threads per threadgroup: %lu\n", (unsigned long)[device maxThreadsPerThreadgroup].width);
+   printf("Max buffer length: %llu bytes (%.2f GB)\n", 
+          (unsigned long long)[device maxBufferLength], 
+          [device maxBufferLength] / (1024.0 * 1024.0 * 1024.0));
+   printf("Unified memory: %s\n", [device hasUnifiedMemory] ? "Yes" : "No");
+   printf("================================\n\n");
+
     // 2. Create command queue
     id<MTLCommandQueue> commandQueue = [device newCommandQueue];
     if (!commandQueue) {
@@ -95,8 +106,15 @@ int main() {
 
 
     // 8. Configure and dispatch threads
-    MTLSize gridSize = MTLSizeMake(M, N, 1);
+
+    // for kernels 1 & 2
+    // MTLSize gridSize = MTLSizeMake(M, N, 1);
+    // MTLSize threadgroup = MTLSizeMake(32, 32, 1);
+
+    // for kernels 3 & 4
+    MTLSize gridSize = MTLSizeMake(M / 32, N / 32, 1);
     MTLSize threadgroup = MTLSizeMake(32, 32, 1);
+
     uint64_t start = mach_absolute_time();
     [computeEncoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroup];
 

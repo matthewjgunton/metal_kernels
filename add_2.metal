@@ -1,7 +1,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// Kernel execution time: 30.865 ms
+// Kernel execution time: 13.384 ms
 
 kernel void add_vectors(
     device const float *A [[buffer(0)]],
