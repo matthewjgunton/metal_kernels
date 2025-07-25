@@ -55,9 +55,9 @@ int main() {
     }
 
     // 5. Create buffers and initialize data
-    id<MTLBuffer> bufferA = [device newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
-    id<MTLBuffer> bufferB = [device newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
-    id<MTLBuffer> bufferC = [device newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
+    id<MTLBuffer> bufferA = [device newBufferWithLength:(M * P * sizeof(float)) options:MTLResourceStorageModeShared];
+    id<MTLBuffer> bufferB = [device newBufferWithLength:(P * N * sizeof(float)) options:MTLResourceStorageModeShared];
+    id<MTLBuffer> bufferC = [device newBufferWithLength:(M * N * sizeof(float)) options:MTLResourceStorageModeShared];
     if (!bufferA || !bufferB || !bufferC) {
         printf("Failed to create buffers\n");
         return 1;
@@ -82,9 +82,9 @@ int main() {
         }
     }
 
-    // Initialize C to -1
+    // Initialize C to zero
     for (int i = 0; i < M * N; i++) {
-        c_init[i] = -1.0f; // never visited
+        c_init[i] = 0.0f;
     }
 
     id<MTLBuffer> bufferM = [device newBufferWithLength:sizeof(int) options:MTLResourceStorageModeShared];
@@ -95,7 +95,7 @@ int main() {
 
     *((int *)[bufferM contents]) = M;
     *((int *)[bufferN contents]) = N;
-    *((int *)[bufferK contents]) = M;
+    *((int *)[bufferK contents]) = P;
     *((float *)[bufferAlpha contents]) = 1.0;
     *((float *)[bufferBeta contents]) = 0.0;
 
@@ -118,24 +118,13 @@ int main() {
     [computeEncoder setBuffer:bufferAlpha offset:0 atIndex:6];
     [computeEncoder setBuffer:bufferBeta offset:0 atIndex:7];
 
-    uint BLOCKSIZE = 32;
-    NSUInteger sharedMemSize = BLOCKSIZE * BLOCKSIZE * sizeof(float);
-    [computeEncoder setThreadgroupMemoryLength:sharedMemSize atIndex:0]; // As
-    [computeEncoder setThreadgroupMemoryLength:sharedMemSize atIndex:1]; // Bs
-
-
-    // 8. Configure and dispatch threads
-
-    // for kernels 1 & 2
-    // MTLSize gridSize = MTLSizeMake(M, N, 1);
-    // MTLSize threadgroup = MTLSizeMake(32, 32, 1);
-
-    // for kernels 3 & 4
-    MTLSize gridSize = MTLSizeMake(M / 32, N / 32, 1);
-    MTLSize threadgroup = MTLSizeMake(32, 32, 1);
+    // 8. grid & threadblock settings
+    MTLSize blockSize = MTLSizeMake(32, 32, 1); // maxes out at 1024
+    MTLSize gridSize = MTLSizeMake(M/32, N/32, 1);
 
     uint64_t start = mach_absolute_time();
-    [computeEncoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroup];
+    [computeEncoder dispatchThreadgroups:gridSize
+                threadsPerThreadgroup:blockSize];
 
     // 9. End encoding and commit
     [computeEncoder endEncoding];
@@ -150,8 +139,9 @@ int main() {
     mach_timebase_info(&timebase);
     uint64_t elapsed_ns = (end - start) * timebase.numer / timebase.denom;
     double elapsed_ms = elapsed_ns / 1000000.0;
-
+    printf("<<<<");
     printf("Kernel execution time: %.3f ms\n", elapsed_ms);
+    printf("CHANGE\n");
 
     float *c = (float *)[bufferC contents];
     bool correct = true;
@@ -165,16 +155,13 @@ int main() {
                 sum += a[i * P + k] * b[k * N + j];  // Changed indexing
             }
             if (sum != c[i * N + j]) {  // Changed from P to N
-                if (c[i * N + j] != -1) {
+                if (c[i * N + j] != 0) {
                     printf("index: %d MISMATCH actual %.3f | expected %.3f\n", 
                     (i * N + j), c[i * N + j], sum);
                 }
                 // printf("index: %d MISMATCH actual %.3f | expected %.3f\n", 
-                //     (i * N + j), c[i * N + j], sum);
+                    // (i * N + j), c[i * N + j], sum);
                 correct = false;
-            } else {
-                printf("index: %d MATCH actual %.3f | expected %.3f\n", 
-                    (i * N + j), c[i * N + j], sum);
             }
         }
     }
@@ -194,6 +181,9 @@ int main() {
     [bufferA release];
     [bufferB release];
     [bufferC release];
+    [bufferM release];
+    [bufferN release];
+    [bufferK release];
     [device release];
 
     return 0;

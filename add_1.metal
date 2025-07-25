@@ -24,9 +24,10 @@ kernel void add_vectors(
     if (x < M && y < N) {
         float tmp = 0.0;
         for (uint i = 0; i < K; ++i) {
-        tmp += A[x * K + i] * B[i * N + y];
+            tmp += A[x * K + i] * B[i * N + y];
         }
+        C[x * N + y] = tmp;
         // C = α*(A@B)+β*C
-        C[x * N + y] = alpha * tmp + beta * C[x * N + y];
+        //C[x * N + y] = alpha * tmp + beta * C[x * N + y];
     }
 }

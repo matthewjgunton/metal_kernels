@@ -16,19 +16,18 @@ kernel void add_vectors(
     uint3 threadgroup_position_in_grid [[threadgroup_position_in_grid]],
     uint3 threads_per_threadgroup [[threads_per_threadgroup]]
 ) {
-
-    const uint BLOCKSIZE = 512;
-
+    const uint BLOCKSIZE = 32;
     const uint x = threadgroup_position_in_grid.x * BLOCKSIZE + (thread_position_in_threadgroup.x / BLOCKSIZE);
-    const uint y = threadgroup_position_in_grid.y * BLOCKSIZE + (thread_position_in_threadgroup.y % BLOCKSIZE);
+    const uint y = threadgroup_position_in_grid.y * BLOCKSIZE + (thread_position_in_threadgroup.x % BLOCKSIZE);
 
     // `if` condition is necessary for when M or N aren't multiples of 32.
     if (x < M && y < N) {
         float tmp = 0.0;
         for (uint i = 0; i < K; ++i) {
-        tmp += A[x * K + i] * B[i * N + y];
+            tmp += A[x * K + i] * B[i * N + y];
         }
         // C = α*(A@B)+β*C
-        C[x * N + y] = alpha * tmp + beta * C[x * N + y];
+        C[x * N + y] = tmp;
+        //C[x * N + y] = alpha * tmp + beta * C[x * N + y];
     }
 }
